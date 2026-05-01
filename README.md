@@ -1,2 +1,32 @@
 # ZAProxy_LAb
-ZAP Pentesting Lab
+Here's the full lab description and read-through:
+
+---
+
+## What the lab is
+
+A standalone, self-contained HTML file — open it in any browser, no server needed, no internet required (except for the font CDN). It's a fully interactive, PTES-aligned penetration testing lab guide that walks a beginner through a complete web application pentest using OWASP ZAP 2.15+ against DVWA running in Docker. Everything runs on your own machine — localhost only, zero external exposure.
+
+The aesthetic is a dark terminal/hacker console look — scanline overlay, JetBrains Mono for code, Syne for headings, green/cyan accent palette. Progress bar at the top tracks completion across all phases.
+
+---
+
+## What's inside — phase by phase
+
+**Setup (15–20 min)** covers everything needed before testing begins: pulling and running the DVWA Docker container, the mandatory first-time database setup at `/setup.php`, DVWA login and setting security to Low, then the full ZAP 2.15+ proxy configuration including the CA certificate export/import, FoxyProxy setup, and critically the `network.proxy.allow_hijacking_localhost = true` fix in Firefox `about:config` that solves the exact issue you hit — localhost traffic being silently bypassed by the browser. Docker management commands (`stop`, `start`, `logs -f`, `rm`) are included inline.
+
+**Phase 1 — Reconnaissance (20 min)** teaches manual seeding before automated spidering. The concept is explained plainly: if you hand ZAP a cold start it hits the login redirect and discovers almost nothing. You manually walk every DVWA menu item first — SQL Injection, XSS Reflected, XSS Stored, Command Injection, File Upload, Brute Force, CSRF, File Inclusion — submitting at least one input on each page so ZAP's Sites tree builds the full app structure. Then you run the Standard Spider against that seed, followed by the AJAX Spider with Firefox Headless — explained as essential for real-world React/Angular/Vue apps that render content dynamically. Blue Team overlay covers rapid GET request patterns, ZAP's default User-Agent string containing "ZAP" as a trivial WAF detection signal, and SIEM correlation rules.
+
+**Phase 2 — Active Scanning (25 min)** walks through creating a custom scan policy named `DVWA-WebApp-Lab` via `Analyse → Scan Policy Manager`, enabling only the relevant check categories (Injection, XSS, Path Traversal, Remote File Inclusion) and disabling irrelevant ones like Buffer Overflow. The active scan is then run against the seeded DVWA tree with Recurse enabled. Expected Alerts output is shown — Critical SQLi instances, reflected XSS, command injection, medium-risk missing headers, low-risk cookie flags. A dedicated step teaches how to read an alert properly: URL, parameter, attack payload, evidence, then using the Request and Response tabs as your evidence artifacts.
+
+**Phase 3 — SQL Injection (20 min)** starts with the vulnerable PHP code concept — string concatenation directly into a query — then two exercises. Exercise A uses ZAP's Requester to manually send `1' OR '1'='1` and `1' UNION SELECT user,password FROM users-- -` against the SQLi endpoint, with the expected output showing `5f4dcc3b5aa765d61d8327deb882cf99` — the MD5 hash of "password" — as proof of credential extraction. Exercise B uses ZAP's Fuzzer with the jbrofuzz SQL Injection wordlist, sorting results by response body size to identify injection points by behavioral difference rather than error messages. A fully formatted FIND-001 finding card is included: CVSS 9.8, MITRE T1190, OWASP A03:2021, remediation pointing to PDO prepared statements.
+
+**Phase 4 — Cross-Site Scripting (15 min)** covers both Reflected and Stored XSS with a clear explanation of why Stored is higher severity — it fires for every user on every page load without any interaction. Reflected XSS is tested via Requester with a three-payload escalation chain: basic script tags, then `<img src=x onerror=alert(document.cookie)>` to bypass script tag filters, then `<svg/onload=alert(1)>` to bypass sanitizers that miss the SVG namespace. Stored XSS is confirmed by refreshing the page and watching the alert re-fire, then verified in an incognito window as a different session to prove it affects all users. FIND-002 card: CVSS 8.8, T1059.007 and T1185 mapped, remediation covering `htmlspecialchars()` and Content-Security-Policy headers.
+
+**Phase 5 — Command Injection / RCE (15 min)** is the highest severity exercise. The concept covers shell separators — semicolon, double ampersand, pipe — and why `shell_exec("ping " . $_GET['ip'])` is catastrophic. Via ZAP Requester you send `127.0.0.1; id` against the Command Injection POST endpoint, confirming RCE when `uid=33(www-data)` appears in the response. Three separator payloads are documented — semicolon getting `id`, AND-operator getting `/etc/passwd`, pipe getting `uname -a` for kernel fingerprinting. A bonus Fuzzer exercise uses jbrofuzz OS Command Injection wordlist, sorting by body size. Deliberately scoped to stop at information gathering — no reverse shell, no privilege escalation in scope for this lab. FIND-003: CVSS 10.0, T1059 mapped, remediation covering `escapeshellarg()` and `php.ini` `disable_functions`.
+
+**Phase 6 — Reporting (15 min)** walks through `Report → Generate Report` in ZAP 2.15+, selecting the Traditional HTML template, plus CLI generation for automation pipelines. SARIF format is mentioned for DefectDojo and GitHub Advanced Security integration. A findings summary table shows all five findings with severity badges. A three-tier remediation roadmap is structured as 0–30 days for Critical (parameterized queries, WAF rules), 30–90 days for High (CSP, cookie flags, output encoding), and 90+ days for Medium (SAST in CI/CD, developer training). Closes with a ZAP Automation Framework YAML snippet — context definition, spider job, active scan job, report job — and the `zap.sh -cmd -autorun` command to run it headlessly. Next steps section covers DVWA Medium/High/Impossible difficulty progression, HackTheBox and TryHackMe, OWASP Testing Guide v4.2, and writing a full VAPT report.
+
+---
+
+Every phase has a Blue Team overlay covering detection opportunities, relevant log sources, SIEM correlation ideas, EDR behavioral rules, and NIST SP 800-53 control references. Every step is a clickable checklist item that crosses off on click. The progress bar and phase dots update as you mark phases complete.ZAP Pentesting Lab
